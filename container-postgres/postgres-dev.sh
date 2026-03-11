@@ -17,7 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Funções Auxiliares
 # ============================================
 print_usage() {
-    echo "Uso: $0 {start|stop|status|logs|shell|reset|backup|restore}"
+    echo "Uso: $0 {start|stop|status|logs|shell|reset|backup|restore|add-service|list-services}"
     echo ""
     echo "Comandos:"
     echo "  start         Inicia o container PostgreSQL"
@@ -28,6 +28,8 @@ print_usage() {
     echo "  reset         Remove container e volume (CUIDADO: apaga todos os dados)"
     echo "  backup <file> Exporta dados para arquivo SQL"
     echo "  restore <file> Restaura dados de arquivo SQL"
+    echo "  add-service <name>  Cria usuário e banco para um serviço"
+    echo "  list-services       Lista todos os bancos e usuários"
     echo ""
     echo "String de conexão: postgresql://\$POSTGRES_USER:\$POSTGRES_PASSWORD@localhost:$PORT/\$POSTGRES_DB"
 }
@@ -236,6 +238,80 @@ cmd_restore() {
     echo "Restauração concluída."
 }
 
+cmd_add_service() {
+    local service_name="$1"
+
+    if [ -z "$service_name" ]; then
+        echo "Erro: Especifique o nome do serviço."
+        echo "Uso: $0 add-service <nome-do-servico>"
+        echo ""
+        echo "Exemplo:"
+        echo "  $0 add-service litellm"
+        echo "  $0 add-service myapp"
+        return 1
+    fi
+
+    if ! check_container_running; then
+        echo "Container '$CONTAINER_NAME' não está rodando. Use '$0 start' primeiro."
+        return 1
+    fi
+
+    # Gerar senha aleatória se não especificada
+    local db_password=$(openssl rand -base64 12 | tr -d '/+=' | head -c 16)
+    local db_user="${service_name}"
+    local db_name="${service_name}"
+
+    POSTGRES_USER=$(get_env_var "POSTGRES_USER")
+
+    echo "Criando serviço '$service_name'..."
+    echo ""
+    echo "  Usuário: $db_user"
+    echo "  Senha:   $db_password"
+    echo "  Banco:   $db_name"
+    echo ""
+
+    # Criar usuário
+    container exec "$CONTAINER_NAME" psql -U "$POSTGRES_USER" -c "CREATE USER $db_user WITH PASSWORD '$db_password';" 2>/dev/null || {
+        echo "⚠️  Usuário '$db_user' já existe. Atualizando senha..."
+        container exec "$CONTAINER_NAME" psql -U "$POSTGRES_USER" -c "ALTER USER $db_user WITH PASSWORD '$db_password';"
+    }
+
+    # Criar banco
+    container exec "$CONTAINER_NAME" psql -U "$POSTGRES_USER" -c "CREATE DATABASE $db_name OWNER $db_user;" 2>/dev/null || {
+        echo "⚠️  Banco '$db_name' já existe."
+    }
+
+    # Grant privilégios
+    container exec "$CONTAINER_NAME" psql -U "$POSTGRES_USER" -c "GRANT ALL PRIVILEGES ON DATABASE $db_name TO $db_user;"
+
+    echo ""
+    echo "✅ Serviço '$service_name' criado com sucesso!"
+    echo ""
+    echo "Strings de conexão:"
+    echo "  Localhost:     postgresql://$db_user:$db_password@localhost:$PORT/$db_name"
+    echo "  Inter-container: postgresql://$db_user:$db_password@192.168.64.1:$PORT/$db_name"
+    echo ""
+    echo "💡 Adicione ao seu .env:"
+    echo "   $(echo $service_name | tr '[:lower:]' '[:upper:]')_DATABASE_URL=postgresql://$db_user:$db_password@192.168.64.1:$PORT/$db_name"
+}
+
+cmd_list_services() {
+    if ! check_container_running; then
+        echo "Container '$CONTAINER_NAME' não está rodando. Use '$0 start' primeiro."
+        return 1
+    fi
+
+    POSTGRES_USER=$(get_env_var "POSTGRES_USER")
+
+    echo "Bancos de dados:"
+    echo ""
+    container exec "$CONTAINER_NAME" psql -U "$POSTGRES_USER" -c "\l" | grep -v template | grep -v postgres
+    echo ""
+    echo "Usuários:"
+    echo ""
+    container exec "$CONTAINER_NAME" psql -U "$POSTGRES_USER" -c "\du" | grep -v postgres
+}
+
 # ============================================
 # Main
 # ============================================
@@ -263,6 +339,12 @@ case "$1" in
         ;;
     restore)
         cmd_restore "$2"
+        ;;
+    add-service)
+        cmd_add_service "$2"
+        ;;
+    list-services)
+        cmd_list_services
         ;;
     *)
         print_usage
