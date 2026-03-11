@@ -54,6 +54,42 @@ chmod +x postgres-dev.sh
 | `reset` | Remove container e volume (apaga todos os dados) |
 | `backup <file>` | Exporta dados para arquivo SQL |
 | `restore <file>` | Restaura dados de arquivo SQL |
+| `add-service <name>` | Cria usuário e banco para um serviço |
+| `list-services` | Lista todos os bancos e usuários |
+
+## Gerenciamento de Serviços
+
+### Criar novo serviço
+
+Cria automaticamente usuário, senha e banco de dados para um novo serviço:
+
+```bash
+./postgres-dev.sh add-service litellm
+```
+
+Output:
+```
+Criando serviço 'litellm'...
+
+  Usuário: litellm
+  Senha:   7Efb6untSBiXHpVn
+  Banco:   litellm
+
+✅ Serviço 'litellm' criado com sucesso!
+
+Strings de conexão:
+  Localhost:       postgresql://litellm:7Efb6untSBiXHpVn@localhost:5432/litellm
+  Inter-container: postgresql://litellm:7Efb6untSBiXHpVn@192.168.64.1:5432/litellm
+
+💡 Adicione ao seu .env:
+   LITELLM_DATABASE_URL=postgresql://litellm:7Efb6untSBiXHpVn@192.168.64.1:5432/litellm
+```
+
+### Listar serviços
+
+```bash
+./postgres-dev.sh list-services
+```
 
 ## Configuração
 
