@@ -17,7 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Funções Auxiliares
 # ============================================
 print_usage() {
-    echo "Uso: $0 {start|stop|status|logs|shell|reset|backup|restore|add-service|list-services}"
+    echo "Uso: $0 {start|stop|status|logs|shell|reset|backup|restore|add-service|remove-service|list-services}"
     echo ""
     echo "Comandos:"
     echo "  start         Inicia o container PostgreSQL"
@@ -29,6 +29,7 @@ print_usage() {
     echo "  backup <file> Exporta dados para arquivo SQL"
     echo "  restore <file> Restaura dados de arquivo SQL"
     echo "  add-service <name>  Cria usuário e banco para um serviço"
+    echo "  remove-service <name>  Remove usuário e banco de um serviço"
     echo "  list-services       Lista todos os bancos e usuários"
     echo ""
     echo "String de conexão: postgresql://\$POSTGRES_USER:\$POSTGRES_PASSWORD@localhost:$PORT/\$POSTGRES_DB"
@@ -312,6 +313,63 @@ cmd_list_services() {
     container exec "$CONTAINER_NAME" psql -U "$POSTGRES_USER" -c "\du" | grep -v postgres
 }
 
+cmd_remove_service() {
+    local service_name="$1"
+
+    if [ -z "$service_name" ]; then
+        echo "Erro: Especifique o nome do serviço."
+        echo "Uso: $0 remove-service <nome-do-servico>"
+        echo ""
+        echo "Exemplo:"
+        echo "  $0 remove-service litellm"
+        echo ""
+        echo "Serviços disponíveis:"
+        bash "$0" list-services 2>/dev/null || true
+        return 1
+    fi
+
+    if ! check_container_running; then
+        echo "Container '$CONTAINER_NAME' não está rodando. Use '$0 start' primeiro."
+        return 1
+    fi
+
+    local db_user="${service_name}"
+    local db_name="${service_name}"
+
+    POSTGRES_USER=$(get_env_var "POSTGRES_USER")
+
+    echo "⚠️  ATENÇÃO: Isso vai remover o serviço '$service_name'!"
+    echo "  Usuário: $db_user"
+    echo "  Banco:   $db_name"
+    echo ""
+    read -p "Tem certeza? (y/N): " confirm
+
+    if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+        echo "Operação cancelada."
+        return 0
+    fi
+
+    echo ""
+    echo "Removendo serviço '$service_name'..."
+
+    # Terminar conexões ativas
+    container exec "$CONTAINER_NAME" psql -U "$POSTGRES_USER" -d postgres -c \
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$db_name' AND pid <> pg_backend_pid();" 2>/dev/null || true
+
+    # Remover banco
+    container exec "$CONTAINER_NAME" psql -U "$POSTGRES_USER" -c "DROP DATABASE IF EXISTS $db_name;" 2>/dev/null || {
+        echo "⚠️  Não foi possível remover o banco '$db_name'."
+    }
+
+    # Remover usuário
+    container exec "$CONTAINER_NAME" psql -U "$POSTGRES_USER" -c "DROP USER IF EXISTS $db_user;" 2>/dev/null || {
+        echo "⚠️  Não foi possível remover o usuário '$db_user'."
+    }
+
+    echo ""
+    echo "✅ Serviço '$service_name' removido com sucesso!"
+}
+
 # ============================================
 # Main
 # ============================================
@@ -342,6 +400,9 @@ case "$1" in
         ;;
     add-service)
         cmd_add_service "$2"
+        ;;
+    remove-service)
+        cmd_remove_service "$2"
         ;;
     list-services)
         cmd_list_services
