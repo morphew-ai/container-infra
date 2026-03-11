@@ -65,9 +65,69 @@ POSTGRES_PASSWORD=postgres
 POSTGRES_DB=postgres
 ```
 
-## Persistência
+## Arquitetura
 
-Os dados são persistidos em um volume nomeado gerenciado pelo Apple container. O volume sobrevive a reinicializações do container.
+```
+┌─────────────────────────────────────────────────────┐
+│                    macOS Host                        │
+│                                                      │
+│  ┌──────────────────┐    ┌───────────────────────┐  │
+│  │ postgres-dev.sh  │    │   Apple Container     │  │
+│  │ (script)         │────│   Runtime             │  │
+│  └──────────────────┘    └──────────┬────────────┘  │
+│                                     │                │
+│                          ┌──────────▼──────────┐     │
+│                          │  Container          │     │
+│                          │  "postgres-dev"     │     │
+│                          │                     │     │
+│                          │  PostgreSQL 17      │     │
+│                          │  Porta: 5432        │     │
+│                          └──────────┬──────────┘     │
+│                                     │                │
+│                          ┌──────────▼──────────┐     │
+│                          │  Volume Nomeado     │     │
+│                          │  "postgres-data"    │     │
+│                          └─────────────────────┘     │
+└─────────────────────────────────────────────────────┘
+```
+
+### Componentes
+
+| Componente | Descrição |
+|------------|-----------|
+| Container `postgres-dev` | Imagem `postgres:17-alpine`, porta 5432 |
+| Volume `postgres-data` | Persistência de dados em `/var/lib/postgresql` |
+| Gateway IP `192.168.64.1` | Comunicação entre containers |
+
+## Fluxo de Trabalho
+
+### Setup Inicial
+
+```bash
+cp .env.example .env
+./postgres-dev.sh start
+./postgres-dev.sh status
+```
+
+### Uso Diário
+
+```bash
+./postgres-dev.sh start
+# trabalhar...
+./postgres-dev.sh stop  # opcional
+```
+
+### Backup
+
+```bash
+./postgres-dev.sh backup backup_$(date +%Y%m%d).sql
+```
+
+### Reset
+
+```bash
+./postgres-dev.sh reset
+```
 
 ## Nota Técnica
 
