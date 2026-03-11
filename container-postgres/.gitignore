@@ -1,0 +1,16 @@
+# Secrets
+.env
+
+# Claude Code
+.claude/
+
+# PostgreSQL backups
+*.sql
+
+# macOS
+.DS_Store
+
+# Editor
+*.swp
+*.swo
+*~
