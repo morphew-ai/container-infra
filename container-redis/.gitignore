@@ -1,8 +1,0 @@
-# Claude Code
-.claude/
-
-# Redis backups
-*.rdb
-
-# macOS
-.DS_Store
