@@ -155,9 +155,23 @@ cmd_start() {
     LITELLM_MASTER_KEY=$(grep LITELLM_MASTER_KEY "$SCRIPT_DIR/$ENV_FILE" | cut -d= -f2)
     LITELLM_SALT_KEY=$(grep LITELLM_SALT_KEY "$SCRIPT_DIR/$ENV_FILE" | cut -d= -f2)
     ALIBABA_API_KEY=$(grep ALIBABA_API_KEY "$SCRIPT_DIR/$ENV_FILE" | cut -d= -f2)
-    DATABASE_URL=$(grep DATABASE_URL "$SCRIPT_DIR/$ENV_FILE" | cut -d= -f2)
-    REDIS_HOST=$(grep REDIS_HOST "$SCRIPT_DIR/$ENV_FILE" | cut -d= -f2)
     REDIS_PORT=$(grep REDIS_PORT "$SCRIPT_DIR/$ENV_FILE" | cut -d= -f2)
+
+    # Detectar IPs dinâmicos das dependências
+    POSTGRES_IP=$(container inspect "$POSTGRES_CONTAINER" 2>/dev/null | grep -o '"ipv4Address":"[^"]*"' | head -1 | cut -d'"' -f4 | cut -d'/' -f1 | tr -d '\\')
+    REDIS_IP=$(container inspect "$REDIS_CONTAINER" 2>/dev/null | grep -o '"ipv4Address":"[^"]*"' | head -1 | cut -d'"' -f4 | cut -d'/' -f1 | tr -d '\\')
+
+    if [ -z "$POSTGRES_IP" ] || [ -z "$REDIS_IP" ]; then
+        echo "❌ Não foi possível detectar os IPs das dependências."
+        return 1
+    fi
+
+    echo "IPs detectados: postgres=$POSTGRES_IP, redis=$REDIS_IP"
+
+    # Montar DATABASE_URL com IP detectado (substituindo o host)
+    DATABASE_URL_TEMPLATE=$(grep DATABASE_URL "$SCRIPT_DIR/$ENV_FILE" | cut -d= -f2-)
+    DATABASE_URL=$(echo "$DATABASE_URL_TEMPLATE" | sed "s|@[^:]*:\([0-9]*\)/|@${POSTGRES_IP}:\1/|")
+    REDIS_HOST="$REDIS_IP"
 
     # Criar e iniciar container
     echo "Criando container '$CONTAINER_NAME'..."
