@@ -11,27 +11,55 @@ Repositório centralizado para gerenciar containers de desenvolvimento usando [A
 ```
 container-infra/
 ├── .claude/
+│   ├── settings.local.json       # Permissões unificadas
 │   └── skills/
 │       └── apple-container-infra/
 │           └── SKILL.md          # Skill para Claude Code
 ├── container-postgres/           # PostgreSQL 17
+│   ├── pg-dev.sh
+│   ├── .env.example
+│   └── README.md
 ├── container-redis/              # Redis 7
+│   ├── redis-dev.sh
+│   └── README.md
 ├── container-litellm/            # LiteLLM Proxy
+│   ├── litellm-dev.sh
+│   ├── config.yaml
+│   ├── .env.example
+│   └── README.md
 └── container-{service}/          # Futuros containers
 ```
 
 ## Containers Disponíveis
 
-| Container | Serviço | Porta | Status |
-|-----------|---------|-------|--------|
-| container-postgres | PostgreSQL 17 | 5432 | A migrar |
-| container-redis | Redis 7 | 6379 | A migrar |
-| container-litellm | LiteLLM Proxy | 4000 | A migrar |
+| Container | Serviço | Porta | String de Conexão |
+|-----------|---------|-------|-------------------|
+| container-postgres | PostgreSQL 17 | 5432 | `postgresql://postgres:postgres@192.168.64.1:5432` |
+| container-redis | Redis 7 | 6379 | `redis://192.168.64.1:6379` |
+| container-litellm | LiteLLM Proxy | 4000 | `http://192.168.64.1:4000/v1` |
 
 ## Requisitos
 
 - macOS 26 (Tahoe) com Apple Silicon
 - [Apple Container](https://github.com/apple/container) instalado
+
+## Uso Rápido
+
+```bash
+# PostgreSQL
+cd container-postgres
+./pg-dev.sh start
+
+# Redis
+cd container-redis
+./redis-dev.sh start
+
+# LiteLLM (requer PostgreSQL e Redis rodando)
+cd container-litellm
+cp .env.example .env
+# Edite .env com suas API keys
+./litellm-dev.sh start
+```
 
 ## Criando Novos Containers
 
